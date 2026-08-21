@@ -2,6 +2,8 @@
 
 Nexus Cart is a full-stack, voice-driven shopping assistant powered by **Google Gemini AI**, **React**, **Node.js/Express**, and **MongoDB Atlas**. It converts natural speech transcripts into structured shopping items with automated categorization, Indian Rupee (₹) price estimation, smart quantity merging, dietary alternatives, and predictive pantry depletion alerts.
 
+🔗 **Live Application:** [Nexus Cart](https://gen-lang-client-0873426585.web.app/)
+
 ---
 
 ## ✨ Key Features
