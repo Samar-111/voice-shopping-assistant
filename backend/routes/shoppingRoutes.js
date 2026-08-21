@@ -39,7 +39,7 @@ const voiceHandler = async (req, res) => {
       return res.status(400).json({ error: 'No voice transcript provided' });
     }
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
     const systemPrompt = `
 You are Nexus Cart, an intelligent voice-shopping assistant.
 Parse the user voice transcript and output ONLY a raw JSON object (no backticks, no markdown):
