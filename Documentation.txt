@@ -1,0 +1,27 @@
+Nexus Cart operates through a voice-first pipeline that captures spoken shopping commands in real time using the browser's Web Speech API. When a user speaks, client-side Web Audio synthesizers generate instant acoustic feedback directly in the browser without loading external audio assets, providing responsive interaction while audio streams to the server.
+
+The raw voice transcript is sent to a Node.js and Express backend hosted on Render, where Google Gemini (gemini-3.6-flash) parses the speech into structured data. In a single inference step, Gemini identifies the user's intent (such as adding, deleting, or checking off items), standardizes units (like kg, packets, or liters), organizes items into categories like Dairy or Produce, estimates realistic Indian retail prices in INR, and suggests smart dietary alternatives.
+
+To prevent cart clutter, the backend performs smart item merging against MongoDB Atlas. If an item is already active in the list, the system increments its existing quantity rather than creating duplicate entries. All item states, categories, and purchase statuses persist securely in the database.
+
+A background replenishment engine continuously evaluates the active shopping list against a catalog of 35+ essential household staples. By filtering out active cart items and rotating suggestions, it provides dynamic depletion alerts (such as restock warnings based on average consumption days) and seasonal produce picks. The React frontend on Firebase Hosting displays these updates across categorized grids and minimalist checklists alongside live network telemetry.
+
+
+       [User Audio Input] ──► [Web Speech API] ──► [Client Audio Synth Feedback]
+                                   │
+                            (Raw Transcript)
+                                   ▼
+                      [Express Backend API (Render)]
+                                   │
+                 ┌─────────────┴─────────────┐
+                 ▼                                   ▼
+      [Google Gemini 3.6 Flash]      [Dynamic Staples Matrix]
+      (Structured JSON Extraction)   (Depletion Cycle Engine)
+                 │                           │
+                 └─────────────┬─────────────┘
+                                   ▼
+                       [MongoDB Atlas Database]
+                                   │
+                     (Synchronized Shopping State)
+                                   ▼
+                    [React HUD / Cyber Matrix View]
