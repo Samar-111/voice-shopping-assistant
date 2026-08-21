@@ -6,44 +6,96 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 
+const EXPANDED_STAPLES = [
+  
+  { name: 'Milk', price: 60, unit: 'packet', category: 'Dairy', interval: '2 days' },
+  { name: 'Eggs', price: 85, unit: 'dozen', category: 'Dairy', interval: '5 days' },
+  { name: 'Butter', price: 58, unit: 'pack', category: 'Dairy', interval: '7 days' },
+  { name: 'Curd / Dahi', price: 35, unit: 'packet', category: 'Dairy', interval: '3 days' },
+  { name: 'Paneer', price: 110, unit: '200g', category: 'Dairy', interval: '4 days' },
+  { name: 'Cheese Slices', price: 140, unit: 'pack', category: 'Dairy', interval: '10 days' },
+  { name: 'Bread', price: 45, unit: 'loaf', category: 'Bakery', interval: '3 days' },
+  { name: 'Oats', price: 120, unit: 'pack', category: 'Pantry', interval: '14 days' },
+
+  
+  { name: 'Sunflower Cooking Oil', price: 160, unit: 'liter', category: 'Pantry', interval: '15 days' },
+  { name: 'Atta (Wheat Flour)', price: 210, unit: '5kg', category: 'Pantry', interval: '20 days' },
+  { name: 'Basmati Rice', price: 130, unit: 'kg', category: 'Pantry', interval: '14 days' },
+  { name: 'Toor Dal', price: 155, unit: 'kg', category: 'Pantry', interval: '10 days' },
+  { name: 'Moong Dal', price: 140, unit: 'kg', category: 'Pantry', interval: '12 days' },
+  { name: 'Tata Salt', price: 28, unit: 'kg', category: 'Pantry', interval: '30 days' },
+  { name: 'Sugar', price: 46, unit: 'kg', category: 'Pantry', interval: '18 days' },
+  { name: 'Turmeric Powder (Haldi)', price: 38, unit: '100g', category: 'Pantry', interval: '25 days' },
+  { name: 'Red Chilli Powder', price: 55, unit: '100g', category: 'Pantry', interval: '25 days' },
+  { name: 'Garam Masala', price: 75, unit: '100g', category: 'Pantry', interval: '30 days' },
+  { name: 'Desi Ghee', price: 340, unit: '500ml', category: 'Pantry', interval: '20 days' },
+
+ 
+  { name: 'Onions', price: 35, unit: 'kg', category: 'Produce', interval: '5 days' },
+  { name: 'Potatoes', price: 30, unit: 'kg', category: 'Produce', interval: '6 days' },
+  { name: 'Tomatoes', price: 40, unit: 'kg', category: 'Produce', interval: '4 days' },
+  { name: 'Ginger & Garlic', price: 45, unit: 'pack', category: 'Produce', interval: '7 days' },
+  { name: 'Green Chillies & Lemon', price: 20, unit: 'pack', category: 'Produce', interval: '4 days' },
+  { name: 'Bananas', price: 50, unit: 'dozen', category: 'Produce', interval: '3 days' },
+  { name: 'Apples', price: 160, unit: 'kg', category: 'Produce', interval: '6 days' },
+
+  
+  { name: 'Tea Leaves (Chai Patti)', price: 140, unit: '250g', category: 'Beverages', interval: '14 days' },
+  { name: 'Instant Coffee', price: 190, unit: 'jar', category: 'Beverages', interval: '20 days' },
+  { name: 'Green Tea', price: 180, unit: 'box', category: 'Beverages', interval: '15 days' },
+  { name: 'Almonds / Dry Fruits', price: 220, unit: '200g', category: 'Pantry', interval: '20 days' },
+  { name: 'Biscuits / Cookies', price: 40, unit: 'pack', category: 'Bakery', interval: '5 days' },
+
+ 
+  { name: 'Dishwash Gel', price: 95, unit: 'bottle', category: 'General', interval: '15 days' },
+  { name: 'Laundry Detergent', price: 190, unit: 'kg', category: 'General', interval: '20 days' },
+  { name: 'Handwash Refill', price: 85, unit: 'pouch', category: 'General', interval: '18 days' },
+  { name: 'Garbage Bags', price: 90, unit: 'roll', category: 'General', interval: '25 days' },
+  { name: 'Toilet Paper / Tissues', price: 110, unit: 'pack', category: 'General', interval: '14 days' }
+];
+
+
 const generateSmartSuggestions = async () => {
-  const allItems = await Item.find().sort({ updatedAt: -1 }).limit(20);
-  
-  
-  const purchasedItems = allItems.filter(i => i.purchased);
-  const depletionAlerts = [];
+  const allItems = await Item.find().sort({ updatedAt: -1 });
 
-  const commonStaples = [
-    { name: 'Milk', price: 60, unit: 'packet', category: 'Dairy', interval: '2 days' },
-    { name: 'Eggs', price: 80, unit: 'dozen', category: 'Dairy', interval: '5 days' },
-    { name: 'Bread', price: 45, unit: 'loaf', category: 'Bakery', interval: '3 days' },
-    { name: 'Bananas', price: 50, unit: 'dozen', category: 'Produce', interval: '4 days' },
-    { name: 'Onions', price: 35, unit: 'kg', category: 'Produce', interval: '7 days' }
-  ];
-
-  commonStaples.forEach(staple => {
-    const isAlreadyInCart = allItems.some(i => !i.purchased && i.name.toLowerCase().includes(staple.name.toLowerCase()));
-    if (!isAlreadyInCart) {
-      depletionAlerts.push({
-        name: staple.name,
-        price: staple.price,
-        unit: staple.unit,
-        category: staple.category,
-        message: `Depletion Cycle: Restock ${staple.name} (${staple.interval} consumption avg)`
-      });
-    }
+  
+  const availableStaples = EXPANDED_STAPLES.filter(staple => {
+    return !allItems.some(
+      item => !item.purchased && item.name.toLowerCase().includes(staple.name.toLowerCase())
+    );
   });
 
+  
+  const shuffled = [...availableStaples];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+
+ 
+  const depletionAlerts = shuffled.slice(0, 4).map(item => ({
+    name: item.name,
+    price: item.price,
+    unit: item.unit,
+    category: item.category,
+    message: `Restock Cycle: Depleting soon (~${item.interval} consumption average)`
+  }));
+
+  
+  const seasonalHarvestPool = [
+    { name: 'Fresh Alphonso Mangoes', price: 180, category: 'Produce' },
+    { name: 'Sweet Corn', price: 30, category: 'Produce' },
+    { name: 'Green Cucumbers', price: 25, category: 'Produce' },
+    { name: 'Fresh Mint & Coriander', price: 20, category: 'Produce' },
+    { name: 'Watermelon', price: 55, category: 'Produce' },
+    { name: 'Organic Pomegranates', price: 140, category: 'Produce' },
+    { name: 'Fresh Tender Coconut', price: 60, category: 'Beverages' }
+  ];
+
   return {
-    season: 'Monsoon / Summer',
-    seasonalItems: [
-      { name: 'Fresh Alphonso Mangoes', price: 180, category: 'Produce' },
-      { name: 'Sweet Corn', price: 30, category: 'Produce' },
-      { name: 'Green Cucumbers', price: 25, category: 'Produce' },
-      { name: 'Fresh Mint & Coriander', price: 20, category: 'Produce' },
-      { name: 'Watermelon', price: 50, category: 'Produce' }
-    ],
-    depletionAlerts: depletionAlerts.slice(0, 3)
+    season: 'Fresh Seasonal Harvest',
+    seasonalItems: seasonalHarvestPool.slice(0, 4),
+    depletionAlerts
   };
 };
 
@@ -92,7 +144,7 @@ Task Requirements:
    - "name": Clean item title (e.g., "Amul Toned Milk", "Organic Bananas", "Eggs")
    - "quantity": Number (default 1)
    - "unit": e.g., "packet", "bottle", "kg", "dozen", "g", "box", "liter", "loaf"
-   - "price": Reasonable estimated Indian retail price in INR ₹ per unit (e.g. Milk: 30-60, Bread: 40-50, Apples: 120-180, Eggs: 70-90, Paneer: 90-120, Rice: 80, Oil: 150). Always estimate a non-zero realistic price if not stated.
+   - "price": Realistic Indian retail price in INR ₹ per unit (e.g. Milk: 30-60, Bread: 40-50, Apples: 120-180, Eggs: 70-90, Paneer: 90-120, Rice: 80, Oil: 150). Always estimate a non-zero realistic price if not stated.
    - "category": Must be one of: "Produce", "Dairy", "Bakery", "Meat", "Beverages", "Pantry", "General"
    - "isOrganic": true if user says organic/bio/natural, else false
    - "brand": brand name if specified (e.g. "Amul", "Mother Dairy", "Tata", "Nestle")
@@ -131,7 +183,7 @@ Output JSON Structure:
           foundSubstitutes.push(...item.substitutes);
         }
 
-        // Smart Item Merging: check if unpurchased item already exists
+        
         const existing = await Item.findOne({
           name: new RegExp(`^${item.name.trim()}$`, 'i'),
           purchased: false
