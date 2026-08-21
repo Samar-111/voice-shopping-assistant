@@ -7,7 +7,7 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 
 const EXPANDED_STAPLES = [
-  
+
   { name: 'Milk', price: 60, unit: 'packet', category: 'Dairy', interval: '2 days' },
   { name: 'Eggs', price: 85, unit: 'dozen', category: 'Dairy', interval: '5 days' },
   { name: 'Butter', price: 58, unit: 'pack', category: 'Dairy', interval: '7 days' },
@@ -17,7 +17,7 @@ const EXPANDED_STAPLES = [
   { name: 'Bread', price: 45, unit: 'loaf', category: 'Bakery', interval: '3 days' },
   { name: 'Oats', price: 120, unit: 'pack', category: 'Pantry', interval: '14 days' },
 
-  
+
   { name: 'Sunflower Cooking Oil', price: 160, unit: 'liter', category: 'Pantry', interval: '15 days' },
   { name: 'Atta (Wheat Flour)', price: 210, unit: '5kg', category: 'Pantry', interval: '20 days' },
   { name: 'Basmati Rice', price: 130, unit: 'kg', category: 'Pantry', interval: '14 days' },
@@ -30,7 +30,7 @@ const EXPANDED_STAPLES = [
   { name: 'Garam Masala', price: 75, unit: '100g', category: 'Pantry', interval: '30 days' },
   { name: 'Desi Ghee', price: 340, unit: '500ml', category: 'Pantry', interval: '20 days' },
 
- 
+  
   { name: 'Onions', price: 35, unit: 'kg', category: 'Produce', interval: '5 days' },
   { name: 'Potatoes', price: 30, unit: 'kg', category: 'Produce', interval: '6 days' },
   { name: 'Tomatoes', price: 40, unit: 'kg', category: 'Produce', interval: '4 days' },
@@ -72,13 +72,13 @@ const generateSmartSuggestions = async () => {
     [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
   }
 
- 
+  
   const depletionAlerts = shuffled.slice(0, 4).map(item => ({
     name: item.name,
     price: item.price,
     unit: item.unit,
     category: item.category,
-    message: `Restock Cycle: Depleting soon (~${item.interval} consumption average)`
+    message: `Restock Cycle: ${item.name} depleting soon (~${item.interval} consumption avg)`
   }));
 
   
