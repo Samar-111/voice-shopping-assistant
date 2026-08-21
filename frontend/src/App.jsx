@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 import { useVoice } from './hooks/useVoice';
 
-const API_BASE = '/api/shopping';
+const API_BASE = 'https://voice-shopping-assistant-50mm.onrender.com/api/shopping';
 
 function playSound(type) {
   try {
