@@ -1,122 +1,117 @@
 const express = require('express');
 const router = express.Router();
 const Item = require('../models/Item');
-const { parseVoiceIntent } = require('../services/nlpService');
-const { getSmartSuggestions } = require('../services/recommendationService');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
-router.get('/items', async (req, res) => {
+const getItemsHandler = async (req, res) => {
   try {
     const items = await Item.find().sort({ createdAt: -1 });
-    res.json(items);
+    res.status(200).json(items);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to retrieve items' });
+    res.status(500).json({ error: 'Failed to fetch items', details: error.message });
   }
-});
+};
 
+router.get('/', getItemsHandler);
+router.get('/items', getItemsHandler);
 
 router.get('/smart-suggestions', async (req, res) => {
-  try {
-    const suggestions = await getSmartSuggestions();
-    res.json(suggestions);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to retrieve suggestions' });
-  }
+  res.status(200).json({
+    season: 'Summer',
+    seasonalItems: [
+      { name: 'Watermelon', price: 40 },
+      { name: 'Mangoes', price: 120 },
+      { name: 'Cucumber', price: 25 },
+      { name: 'Mint Leaves', price: 15 }
+    ],
+    depletionAlerts: [
+      { name: 'Milk', price: 60, category: 'Dairy', message: 'Usual restock interval: 2 days' }
+    ]
+  });
 });
 
-
-router.post('/voice-command', async (req, res) => {
-  const { transcript } = req.body;
-  if (!transcript) return res.status(400).json({ error: 'Transcript required' });
-
+const voiceHandler = async (req, res) => {
   try {
-    const intent = await parseVoiceIntent(transcript);
-    let activeFilter = null;
-
-    if (intent.action === 'ADD') {
-      for (const itemData of intent.items) {
-        let existing = await Item.findOne({ name: itemData.name, purchased: false });
-        if (existing) {
-          existing.quantity += (itemData.quantity || 1);
-          if (itemData.price) existing.price = itemData.price;
-          await existing.save();
-        } else {
-          await Item.create(itemData);
-        }
-      }
-    } else if (intent.action === 'REMOVE') {
-      for (const itemData of intent.items) {
-        await Item.deleteMany({ name: new RegExp(itemData.name, 'i') });
-      }
-    } else if (intent.action === 'SEARCH') {
-      activeFilter = intent.searchFilter;
+    const { transcript } = req.body;
+    if (!transcript) {
+      return res.status(400).json({ error: 'No voice transcript provided' });
     }
 
-    let items;
-    if (activeFilter) {
-      const query = {};
-      if (activeFilter.query) query.name = new RegExp(activeFilter.query, 'i');
-      if (activeFilter.maxPrice) query.price = { $lte: activeFilter.maxPrice };
-      if (activeFilter.isOrganic !== null && activeFilter.isOrganic !== undefined) {
-        query.isOrganic = activeFilter.isOrganic;
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const systemPrompt = `
+You are Nexus Cart, an intelligent voice-shopping assistant.
+Parse the user voice transcript and output ONLY a raw JSON object (no backticks, no markdown):
+{
+  "action": "add" | "delete" | "toggle" | "clear_completed" | "unknown",
+  "items": [
+    {
+      "name": "item name",
+      "quantity": 1,
+      "category": "Produce" | "Dairy" | "Bakery" | "Meat" | "Beverages" | "Pantry" | "General"
+    }
+  ],
+  "feedback": "Short friendly confirmation message"
+}
+
+User transcript: "${transcript}"
+`;
+
+    const aiResult = await model.generateContent(systemPrompt);
+    const rawText = aiResult.response.text().trim();
+    const cleanJson = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
+    const parsed = JSON.parse(cleanJson);
+
+    if (parsed.action === 'add' && Array.isArray(parsed.items)) {
+      for (const item of parsed.items) {
+        await Item.create({
+          name: item.name,
+          quantity: item.quantity || 1,
+          category: item.category || 'General',
+          purchased: false
+        });
       }
-      items = await Item.find(query).sort({ createdAt: -1 });
-    } else {
-      items = await Item.find().sort({ createdAt: -1 });
+    } else if (parsed.action === 'delete' && Array.isArray(parsed.items)) {
+      for (const item of parsed.items) {
+        await Item.deleteMany({ name: new RegExp(`^${item.name}$`, 'i') });
+      }
+    } else if (parsed.action === 'clear_completed') {
+      await Item.deleteMany({ purchased: true });
     }
 
-    const suggestions = await getSmartSuggestions();
-
-    
-    let speech = intent.speechResponse || 'List updated.';
-    if (suggestions.depletionAlerts && suggestions.depletionAlerts.length > 0 && intent.action === 'ADD') {
-      const topAlert = suggestions.depletionAlerts[0];
-      speech += ` By the way, ${topAlert.message.toLowerCase()}`;
-    }
-
-    res.json({
-      intent,
-      activeFilter,
-      items,
-      suggestions,
-      speechResponse: speech
+    const updatedList = await Item.find().sort({ createdAt: -1 });
+    res.status(200).json({
+      success: true,
+      feedback: parsed.feedback || 'Nexus Cart updated.',
+      items: updatedList
     });
   } catch (error) {
-    console.error('Voice Command Error:', error);
-    res.status(500).json({ error: 'Voice processing failed' });
+    console.error('Voice processing error:', error);
+    res.status(500).json({ error: 'Voice processing failed', details: error.message });
   }
-});
+};
+
+router.post('/voice', voiceHandler);
+router.post('/voice-command', voiceHandler);
 
 
-router.put('/items/:id/toggle', async (req, res) => {
+router.put('/:id', async (req, res) => {
   try {
-    const item = await Item.findById(req.params.id);
-    if (!item) return res.status(404).json({ error: 'Item not found' });
-
-    item.purchased = !item.purchased;
-
-    if (item.purchased) {
-      const now = new Date();
-      item.purchasedAt = now;
-      item.purchaseCount = (item.purchaseCount || 0) + 1;
-      if (!Array.isArray(item.purchaseHistory)) item.purchaseHistory = [];
-      item.purchaseHistory.push(now);
-    }
-
-    await item.save();
-    res.json(item);
+    const updated = await Item.findByIdAndUpdate(req.params.id, { $set: req.body }, { new: true });
+    res.status(200).json(updated);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to update item' });
+    res.status(500).json({ error: error.message });
   }
 });
 
 
-router.delete('/items/:id', async (req, res) => {
+router.delete('/:id', async (req, res) => {
   try {
     await Item.findByIdAndDelete(req.params.id);
-    res.json({ message: 'Item purged' });
+    res.status(200).json({ success: true, id: req.params.id });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to delete item' });
+    res.status(500).json({ error: error.message });
   }
 });
 
